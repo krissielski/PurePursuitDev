@@ -1,16 +1,16 @@
 #Pure Pursuit Path Generator
 # ** All units are in inches **
+# ** All velocities are in inches/sec **
 import math
 import copy
 import cv2
 import numpy as np 
+import configparser
+import csv
 
-#Constants
-POINTS_SPACING = 6          #inches
 
-
-#User defined Waypoint
-waypoints = [ (0,0),  (0,225), (-160,225),(-160,150) ]     # Raw user input list
+#Waypoints list
+waypoints = []
 
 
 
@@ -18,9 +18,23 @@ waypoints = [ (0,0),  (0,225), (-160,225),(-160,150) ]     # Raw user input list
 ##   MAIN   ##
 ##############
 
+#read in config file
+config = configparser.ConfigParser()
+config.read("purepursuit.ini")
+
+#Read in Waypoints
+with open("waypoints.csv",newline="") as csvfile:
+    reader = csv.reader(csvfile)
+    for row in reader:
+        if( len(row) == 2):
+            waypoints.append( [ int(row[0]),int(row[1]) ] )
+
+
 
 ####  Points Injection  ####
 #Take pairs of user waypoints and inject points based on points spacing parameter.
+
+cfg_PATH_SPACING = float( config["PATH_GENERATION"]["POINTS_SPACING"] )
 
 path_points = [] 
 
@@ -38,7 +52,7 @@ for i in range( len(waypoints)-1 ):
         xp = waypoints[i][0] + (seg_dist/wp_dist) * (waypoints[i+1][0]-waypoints[i][0])
         yp = waypoints[i][1] + (seg_dist/wp_dist) * (waypoints[i+1][1]-waypoints[i][1])
         path_points.append( [xp,yp] )
-        seg_dist += float(POINTS_SPACING)
+        seg_dist += cfg_PATH_SPACING
 
 #Add final point
 path_points.append( [ waypoints[-1][0],waypoints[-1][1] ] )
@@ -49,21 +63,22 @@ path_points.append( [ waypoints[-1][0],waypoints[-1][1] ] )
 
 #Constant setup
 #  larger 'b' = smoother
-#  a = 1-b
-SMOOTHER_TOLERANCE     = 0.001 
-SMOOTHER_WEIGHT_DATA   = 0.2        #'a'
-SMOOTHER_WEIGHT_SMOOTH = 0.8        #'b'   where 0.75 < b < 0.98
+#  a = 1-b, where 0.75 < b < 0.98
+cfg_TOLERANCE     = float( config["PATH_GENERATION"]["SMOOTHER_TOLERANCE"] )
+#cfg_WEIGHT_DATA  = float( config["PATH_GENERATION"]["SMOOTHER_WEIGHT_DATA"] )     #'a'
+cfg_WEIGHT_SMOOTH = float( config["PATH_GENERATION"]["SMOOTHER_WEIGHT_SMOOTH"] )   #'b'
+cfg_WEIGHT_DATA   = 1.0 - cfg_WEIGHT_SMOOTH         #Calculate 'a' from 'b'
 
 path_profile = copy.deepcopy( path_points )       #Must do a deep copy here  [0]=X, [1]=Y
 
-change  = SMOOTHER_TOLERANCE
-while( change >= SMOOTHER_TOLERANCE):
+change  = cfg_TOLERANCE
+while( change >= cfg_TOLERANCE):
     change = 0.0
     for i in range ( 1,len(path_points)-1 ):
         for j in range ( len(path_points[i]) ):
             aux = path_profile[i][j]
-            path_profile[i][j] += SMOOTHER_WEIGHT_DATA * ( path_points[i][j] - path_profile[i][j] ) + \
-                SMOOTHER_WEIGHT_SMOOTH * (path_profile[i-1][j] + path_profile[i+1][j] - (2.0 * path_profile[i][j]) )
+            path_profile[i][j] += cfg_WEIGHT_DATA * ( path_points[i][j] - path_profile[i][j] ) + \
+                cfg_WEIGHT_SMOOTH * (path_profile[i-1][j] + path_profile[i+1][j] - (2.0 * path_profile[i][j]) )
             change += abs( aux - path_profile[i][j] )
 
 
@@ -110,14 +125,18 @@ path_profile[-1].append( 0.0 )
 # min( max_velocity, k/curvature)
 # [4] = Velocity
 
-MAX_VELOCITY  = 168     # inches/sec
-TURN_CONSTANT = 7       # 1<x<6 = How fast to make turn?  1=slow,  6=fast
+## MAX_VELOCITY      # inches/sec
+## TURN_CONSTANT     # 1<x<6 = How fast to make turn?  1=slow,  6=fast
+cfg_MAX_VELOCITY  = float( config["PATH_GENERATION"]["MAX_VELOCITY"] )
+cfg_TURN_CONSTANT = float( config["PATH_GENERATION"]["TURN_CONSTANT"] )
+
+
 
 for pp in path_profile:
     if( abs(pp[3]) < 0.001):             #assume straight ahead, no curve
-        pp.append(MAX_VELOCITY)
+        pp.append(cfg_MAX_VELOCITY)
     else:
-        pp.append( min( MAX_VELOCITY, TURN_CONSTANT/pp[3]) )
+        pp.append( min( cfg_MAX_VELOCITY, cfg_TURN_CONSTANT/pp[3]) )
 
 
 ####  Deceleration Target ####   
@@ -125,7 +144,8 @@ for pp in path_profile:
 # min( current_velocity, calculated next velocity)
 # [5] = Acceleration
 
-MAX_DECELERATION  = 200     # inches/sec^2
+## MAX_DECELERATION   # inches/sec^2
+cfg_MAX_DECELERATION  = float( config["PATH_GENERATION"]["MAX_DECELERATION"] )
 
 path_profile[-1].append(0.0)    #start with last point as zero
 
@@ -133,10 +153,10 @@ path_profile[-1].append(0.0)    #start with last point as zero
 #Work Backwards
 for i in range( len(path_profile)-2,0,-1 ):
     dist = math.sqrt( (path_profile[i+1][0]-path_profile[i][0])**2 + (path_profile[i+1][1]-path_profile[i][1])**2 )
-    vf   = math.sqrt(  path_profile[i+1][5]**2 + 2*MAX_DECELERATION* dist )
+    vf   = math.sqrt(  path_profile[i+1][5]**2 + 2*cfg_MAX_DECELERATION* dist )
     path_profile[i].append( min(path_profile[i][4], vf ) )
 
-path_profile[0].append(MAX_VELOCITY)    #Set first point to max_veocity
+path_profile[0].append(cfg_MAX_VELOCITY)    #Set first point to max_veocity
 
 
 ####  Write to File ####
@@ -148,7 +168,7 @@ with open('output.csv',"w+") as file:
         file.write( str(round(pp[2],1)) + "," )     # [2] = running distance
         file.write( str(round(pp[3],1)) + "," )     # [3] = curvature
         file.write( str(round(pp[4],1)) + "," )     # [4] = max velocity
-        file.write( str(round(pp[5],1)) + "\n" )    # [5] = velocity with acceleration applied
+        file.write( str(round(pp[5],1)) + "\n" )    # [5] = velocity with deceleration applied
 
 
 #print( path_profile )
@@ -178,7 +198,7 @@ for pt in waypoints:
 #Smoothed Injected points
 for i in range(1,len(path_profile)):
 
-    v_go   = int(255 * path_profile[i][5]/MAX_VELOCITY)
+    v_go   = int(255 * path_profile[i][5]/cfg_MAX_VELOCITY)
     v_nogo = min( 4*(255-v_go),255) 
 
     cv2.circle(img, ( int((start_pos[0] + path_profile[i][0])*PPI),

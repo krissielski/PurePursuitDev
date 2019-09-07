@@ -130,9 +130,9 @@ def OnTrackbar(val):
 
 
     #Drive Power Lines
-    ldrive = int( robot_data[val][10]/5 )
-    rdrive = int( robot_data[val][11
-    ]/5 )
+    PPMD = 30       #Pixels per max drive (100%)
+    ldrive = int( robot_data[val][12]*PPMD )
+    rdrive = int( robot_data[val][13]*PPMD )
 
     #Right Drive
     cv2.line(img2,  (robot_x1,robot_y1),
@@ -140,12 +140,21 @@ def OnTrackbar(val):
                       int ( robot_y1 - rdrive*math.cos(-robot_heading_rad) )  ),
                     (0,0,255),2)
 
+    cv2.circle(img2,
+                    ( int ( robot_x1 + PPMD*math.sin(-robot_heading_rad) ), 
+                      int ( robot_y1 - PPMD*math.cos(-robot_heading_rad) )  ),
+                    1, (0,255,255), 1)                    
+
     #Left Drive
     cv2.line(img2,  (robot_x4,robot_y4),
                     ( int ( robot_x4 + ldrive*math.sin(-robot_heading_rad) ), 
                       int ( robot_y4 - ldrive*math.cos(-robot_heading_rad) )  ),
                     (0,0,255),2)
 
+    cv2.circle(img2,
+                    ( int ( robot_x4 + PPMD*math.sin(-robot_heading_rad) ), 
+                      int ( robot_y4 - PPMD*math.cos(-robot_heading_rad) )  ),
+                    1, (0,255,255), 1)    
 
     cv2.imshow('image', img2)
 
@@ -159,7 +168,7 @@ def OnTrackbar(val):
 
 #read in path profile
 path_profile = []
-with open('output.csv',"r+") as file:
+with open('output.csv',"r") as file:
     for i,line in enumerate( file.readlines() ):
         if( i>0 ):
             #Skip first line (Profile name & date)
@@ -168,7 +177,7 @@ with open('output.csv',"r+") as file:
 
 #read in robot data
 robot_data = []
-with open('pp.csv',"r+") as file:
+with open('pp.csv',"r") as file:
     for i,line in enumerate(file.readlines()):
         robot_data.append( [float(x) for x in line.split(',') ] )
 

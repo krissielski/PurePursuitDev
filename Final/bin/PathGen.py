@@ -79,7 +79,8 @@ path_points.append( [ waypoints[-1][0],waypoints[-1][1] ] )
 
 
 ####  Path Smoothing  ####
-# Using algorithm straight out of Pure Pursuit paper
+# Using "push" algorithm developed by Team 2168
+# https://github.com/KHEngineering/SmoothPathPlanner
 
 #Constant setup
 #  larger 'b' = smoother

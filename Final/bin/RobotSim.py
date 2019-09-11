@@ -5,9 +5,9 @@ import cv2
 import numpy as np 
 import sys
 
-LOOKAHEAD_DISTANCE = 20
+LOOKAHEAD_DISTANCE = 25
 
-ROBOT_TRACK_WIDTH  = 30     
+ROBOT_TRACK_WIDTH  = 25     
 
 end_of_path = False
 

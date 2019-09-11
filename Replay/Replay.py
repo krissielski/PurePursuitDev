@@ -178,8 +178,10 @@ with open('output.csv',"r") as file:
 #read in robot data
 robot_data = []
 with open('pp.csv',"r") as file:
-    for i,line in enumerate(file.readlines()):
-        robot_data.append( [float(x) for x in line.split(',') ] )
+    for i,line in enumerate( file.readlines() ):
+        if( i>0 ):
+            #Skip first line (Header Info)        
+            robot_data.append( [float(x) for x in line.split(',') ] )
 
 
 
